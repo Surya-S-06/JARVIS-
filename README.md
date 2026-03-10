@@ -20,11 +20,7 @@
 
 ---
 
-## 🎬 Demo
 
-> Watch the full demo on YouTube 👉 [Click here](https://www.youtube.com/watch?v=oKtrHy0ERNA)
-
----
 
 ## 📖 Table of Contents
 
