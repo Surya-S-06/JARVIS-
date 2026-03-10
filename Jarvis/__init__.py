@@ -1,5 +1,5 @@
 import speech_recognition as sr
-import pyttsx3
+# pyttsx3 imported but engine is initialized in main.py to avoid duplicate instances
 
 from Jarvis.features import date_time
 from Jarvis.features import launch_app
@@ -15,9 +15,7 @@ from Jarvis.features import system_stats
 from Jarvis.features import loc
 
 
-engine = pyttsx3.init('sapi5')
-voices = engine.getProperty('voices')
-engine.setProperty('voices', voices[0].id)
+engine = None   # set from main.py after init
 
 class JarvisAssistant:
     def __init__(self):
