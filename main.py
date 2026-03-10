@@ -1,18 +1,59 @@
-from Jarvis import JarvisAssistant
-import re
-import os
-import random
-import pprint
-import datetime
-import requests
-import sys
-import urllib.parse  
-import pyjokes
-import time
-import pyautogui
-import pywhatkit
-import wolframalpha
-from PIL import Image
+# =============================================================================
+#  J.A.R.V.I.S — Just A Rather Very Intelligent System
+#  Author   : Surya S (github.com/Surya-S-06)
+#  Language : Python 3.x
+#  GUI      : PyQt5 (full-screen animated window)
+#  Voice    : SpeechRecognition (Google STT) + pyttsx3 (offline TTS)
+# =============================================================================
+#
+#  HOW TO RUN:
+#     py -3 main.py
+#
+#  WHAT YOU CAN SAY TO JARVIS:
+#     "Hey Jarvis"           → Wake up / greet
+#     "What's the time"      → Current time
+#     "What's the date"      → Today's date
+#     "Open youtube.com"     → Open any website
+#     "Launch chrome"        → Launch installed app
+#     "Search Google for..." → Google search
+#     "Youtube <song name>"  → Play on YouTube
+#     "What's the weather in <city>" → Weather report
+#     "Tell me about <topic>"        → Wikipedia summary
+#     "What is / Who is <question>"  → Wolframalpha answer
+#     "Calculate <math>"             → Math computation
+#     "Top headlines / What's buzzing / news" → News headlines
+#     "Send email"           → Voice-guided email
+#     "Make a note"          → Write to Notepad
+#     "Tell me a joke"       → Programmer joke
+#     "System status"        → CPU / RAM / Battery info
+#     "What is my IP"        → Your public IP address
+#     "Where is <place>"     → Location + distance
+#     "Where am I"           → Your current location
+#     "Switch window"        → Alt+Tab
+#     "Take a screenshot"    → Saves a screenshot
+#     "Hide all files"       → Hides folder contents
+#     "Make files visible"   → Unhides folder contents
+#     "Goodbye / Offline"    → Shut down JARVIS
+# =============================================================================
+
+# ── Standard library imports ──────────────────────────────────────────────────
+from Jarvis import JarvisAssistant   # Core assistant class (aggregates all features)
+import re                             # Regex for flexible command matching
+import os                             # OS-level operations (file hiding, app launching)
+import random                         # For picking random greeting responses
+import pprint                         # Pretty-print news headlines to console
+import datetime                       # For time-of-day greeting logic
+import requests                       # HTTP requests (public IP lookup)
+import sys                            # System exit + stdout control
+import urllib.parse                   # URL encoding for web requests
+import pyjokes                        # Random programmer jokes
+import time                           # Sleep/delay between actions
+import pyautogui                      # Keyboard automation (Alt+Tab, screenshot)
+import pywhatkit                      # YouTube playback via voice
+import wolframalpha                   # Computational intelligence Q&A engine
+
+# ── GUI / Image imports ───────────────────────────────────────────────────────
+from PIL import Image                 # Open and display saved screenshots
 from PyQt5 import QtWidgets, QtCore, QtGui
 from PyQt5.QtCore import QTimer, QTime, QDate, Qt
 from PyQt5.QtGui import QMovie
@@ -20,38 +61,73 @@ from PyQt5.QtCore import *
 from PyQt5.QtGui import *
 from PyQt5.QtWidgets import *
 from PyQt5.uic import loadUiType
-from Jarvis.features.gui import Ui_MainWindow
-from Jarvis.config import config
+from Jarvis.features.gui import Ui_MainWindow  # Auto-generated Qt UI class
+from Jarvis.config import config               # API keys & credentials (not in Git)
 
+# ── Create assistant object ───────────────────────────────────────────────────
 obj = JarvisAssistant()
 
-# ================================ MEMORY ===========================================================================================================
+# =============================================================================
+#  MEMORY / CONSTANTS
+#  These are the fixed datasets JARVIS uses for greeting recognition
+#  and the email address book. Add your contacts to EMAIL_DIC below.
+# =============================================================================
 
-GREETINGS = ["hello jarvis", "jarvis", "wake up jarvis", "you there jarvis", "time to work jarvis", "hey jarvis",
-             "ok jarvis", "are you there"]
-GREETINGS_RES = ["always there for you sir", "i am ready sir",
-                 "your wish my command", "how can i help you sir?", "i am online and ready sir"]
+# Phrases that trigger a greeting response from JARVIS
+GREETINGS = [
+    "hello jarvis", "jarvis", "wake up jarvis", "you there jarvis",
+    "time to work jarvis", "hey jarvis", "ok jarvis", "are you there"
+]
 
+# Random responses JARVIS picks from when greeted
+GREETINGS_RES = [
+    "always there for you sir",
+    "i am ready sir",
+    "your wish my command",
+    "how can i help you sir?",
+    "i am online and ready sir"
+]
+
+# ── Email address book ────────────────────────────────────────────────────────
+# Add names and their email addresses here.
+# Say "send email" → JARVIS asks "Whom?" → you say the key name below.
+# Example: say "myself" to email yourself.
 EMAIL_DIC = {
-    'myself': 'your_email@gmail.com',
+    'myself': 'your_email@gmail.com',          # ← Replace with your email
     'my official email': 'your_email@gmail.com',
     'my second email': 'your_email@gmail.com',
     'my official mail': 'your_email@gmail.com',
     'my second mail': 'your_email@gmail.com'
 }
 
+# Phrases that trigger Google Calendar event fetching
 CALENDAR_STRS = ["what do i have", "do i have plans", "am i busy"]
-# =======================================================================================================================================================
 
+# =============================================================================
+#  CORE FUNCTIONS
+# =============================================================================
 
 def speak(text):
+    """
+    Convert text to speech using pyttsx3 (offline SAPI5 engine).
+    All JARVIS responses go through this function.
+    """
     obj.tts(text)
 
 
+# Wolframalpha client — used for math, science, and factual Q&A
 app_id = config.wolframalpha_id
 
 
 def computational_intelligence(question):
+    """
+    Send a question to Wolframalpha API and return the answer as text.
+    Used for commands like:
+      - "What is the speed of light"
+      - "Calculate 452 + 89"
+      - "Who is the president of France"
+    Requires a free Wolframalpha App ID in Jarvis/config/config.py
+    """
     try:
         client = wolframalpha.Client(app_id)
         answer = client.query(question)
@@ -61,8 +137,14 @@ def computational_intelligence(question):
     except:
         speak("Sorry sir I couldn't fetch your question's answer. Please try again ")
         return None
-    
+
+
 def startup():
+    """
+    Full startup sequence — plays on first launch.
+    JARVIS speaks a system boot sequence, then greets based on time of day.
+    This only runs ONCE when you click the Run button.
+    """
     speak("Initializing Jarvis")
     speak("Starting all systems applications")
     speak("Installing and checking all drivers")
@@ -72,33 +154,44 @@ def startup():
     speak("All drivers are up and running")
     speak("All systems have been activated")
     speak("Now I am online")
+
+    # Time-based greeting
     hour = int(datetime.datetime.now().hour)
-    if hour>=0 and hour<=12:
+    if hour >= 0 and hour <= 12:
         speak("Good Morning")
-    elif hour>12 and hour<18:
+    elif hour > 12 and hour < 18:
         speak("Good afternoon")
     else:
         speak("Good evening")
+
     c_time = obj.tell_time()
     speak(f"Currently it is {c_time}")
     speak("I am Jarvis. Online and ready sir. Please tell me how may I help you")
-    
-
 
 
 def wish():
+    """
+    Shorter greeting — same time-based logic as startup but briefer.
+    Called after startup to re-greet and prompt for commands.
+    """
     hour = int(datetime.datetime.now().hour)
-    if hour>=0 and hour<=12:
+    if hour >= 0 and hour <= 12:
         speak("Good Morning")
-    elif hour>12 and hour<18:
+    elif hour > 12 and hour < 18:
         speak("Good afternoon")
     else:
         speak("Good evening")
+
     c_time = obj.tell_time()
     speak(f"Currently it is {c_time}")
     speak("I am Jarvis. Online and ready sir. Please tell me how may I help you")
-# if __name__ == "__main__":
 
+
+# =============================================================================
+#  MAIN THREAD — Voice Command Loop
+#  Runs in a separate QThread so the GUI stays responsive.
+#  Every voice input goes through TaskExecution() in an infinite loop.
+# =============================================================================
 
 class MainThread(QThread):
     def __init__(self):
@@ -108,53 +201,74 @@ class MainThread(QThread):
         self.TaskExecution()
 
     def TaskExecution(self):
-        startup()
-        wish()
+        """
+        Core command dispatcher loop.
+        1. Listens for voice input via microphone (Google STT)
+        2. Matches the command text to the appropriate feature
+        3. Calls the relevant function and speaks the result
+        Runs indefinitely until "goodbye" or "offline" is spoken.
+        """
+        startup()   # ← One-time boot sequence
+        wish()      # ← Re-prompt after boot
 
         while True:
-            command = obj.mic_input()
+            # ── Listen for voice command ──────────────────────────────────
+            command = obj.mic_input()   # Returns transcribed text (lowercase string)
 
+            # ── DATE ──────────────────────────────────────────────────────
+            # Say: "What's the date" / "Tell me the date" / "date"
             if re.search('date', command):
                 date = obj.tell_me_date()
                 print(date)
                 speak(date)
 
+            # ── TIME ──────────────────────────────────────────────────────
+            # Say: "What's the time" / "time"
             elif "time" in command:
                 time_c = obj.tell_time()
                 print(time_c)
                 speak(f"Sir the time is {time_c}")
 
+            # ── LAUNCH APPLICATION ────────────────────────────────────────
+            # Say: "Launch chrome" / "Launch vlc"
+            # Add more apps to dict_app below using their full .exe path
             elif re.search('launch', command):
                 dict_app = {
                     'chrome': 'C:/Program Files/Google/Chrome/Application/chrome'
+                    # Add more: 'vlc': 'C:/Program Files/VideoLAN/VLC/vlc'
                 }
-
                 app = command.split(' ', 1)[1]
                 path = dict_app.get(app)
-
                 if path is None:
                     speak('Application path not found')
                     print('Application path not found')
-
                 else:
                     speak('Launching: ' + app + 'for you sir!')
                     obj.launch_any_app(path_of_app=path)
 
+            # ── GREETING ──────────────────────────────────────────────────
+            # Say: "Hey Jarvis" / "Wake up Jarvis" / "You there Jarvis"
             elif command in GREETINGS:
                 speak(random.choice(GREETINGS_RES))
 
+            # ── OPEN WEBSITE ──────────────────────────────────────────────
+            # Say: "Open youtube.com" / "Open github.com"
             elif re.search('open', command):
                 domain = command.split(' ')[-1]
                 open_result = obj.website_opener(domain)
                 speak(f'Alright sir !! Opening {domain}')
                 print(open_result)
 
+            # ── WEATHER ───────────────────────────────────────────────────
+            # Say: "What's the weather in Mumbai" / "Weather in Delhi"
             elif re.search('weather', command):
                 city = command.split(' ')[-1]
                 weather_res = obj.weather(city=city)
                 print(weather_res)
                 speak(weather_res)
 
+            # ── WIKIPEDIA ────────────────────────────────────────────────
+            # Say: "Tell me about Elon Musk" / "Tell me about Python"
             elif re.search('tell me about', command):
                 topic = command.split(' ')[-1]
                 if topic:
@@ -162,9 +276,11 @@ class MainThread(QThread):
                     print(wiki_res)
                     speak(wiki_res)
                 else:
-                    speak(
-                        "Sorry sir. I couldn't load your query from my database. Please try again")
+                    speak("Sorry sir. I couldn't load your query from my database. Please try again")
 
+            # ── NEWS ──────────────────────────────────────────────────────
+            # Say: "Top headlines" / "What's buzzing" / "News"
+            # Source: Times of India RSS feed
             elif "buzzing" in command or "news" in command or "headlines" in command:
                 news_res = obj.news()
                 speak('Source: The Times Of India')
@@ -172,64 +288,82 @@ class MainThread(QThread):
                 for index, articles in enumerate(news_res):
                     pprint.pprint(articles['title'])
                     speak(articles['title'])
-                    if index == len(news_res)-2:
+                    if index == len(news_res) - 2:
                         break
                 speak('These were the top headlines, Have a nice day Sir!!..')
 
+            # ── GOOGLE SEARCH ─────────────────────────────────────────────
+            # Say: "Search Google for Python tutorials"
             elif 'search google for' in command:
                 obj.search_anything_google(command)
-            
+
+            # ── PLAY MUSIC (LOCAL) ────────────────────────────────────────
+            # Say: "Play music" / "Hit some music"
+            # Change music_dir below to your local music folder path
             elif "play music" in command or "hit some music" in command:
-                music_dir = "F://Songs//Imagine_Dragons"
+                music_dir = "F://Songs//Imagine_Dragons"   # ← Change this path
                 songs = os.listdir(music_dir)
                 for song in songs:
                     os.startfile(os.path.join(music_dir, song))
 
+            # ── YOUTUBE ───────────────────────────────────────────────────
+            # Say: "Youtube Believer Imagine Dragons" / "Youtube <any song>"
             elif 'youtube' in command:
                 video = command.split(' ')[1]
                 speak(f"Okay sir, playing {video} on youtube")
                 pywhatkit.playonyt(video)
 
+            # ── SEND EMAIL ────────────────────────────────────────────────
+            # Say: "Send email" / "Email"
+            # JARVIS will ask: Who? Subject? Message? — all by voice
+            # Requires: email + email_password in Jarvis/config/config.py
+            # Add recipients in the EMAIL_DIC dictionary at the top of this file
             elif "email" in command or "send email" in command:
                 sender_email = config.email
                 sender_password = config.email_password
-
                 try:
                     speak("Whom do you want to email sir ?")
                     recipient = obj.mic_input()
                     receiver_email = EMAIL_DIC.get(recipient)
                     if receiver_email:
-
                         speak("What is the subject sir ?")
                         subject = obj.mic_input()
                         speak("What should I say?")
                         message = obj.mic_input()
                         msg = 'Subject: {}\n\n{}'.format(subject, message)
-                        obj.send_mail(sender_email, sender_password,
-                                      receiver_email, msg)
+                        obj.send_mail(sender_email, sender_password, receiver_email, msg)
                         speak("Email has been successfully sent")
                         time.sleep(2)
-
                     else:
-                        speak(
-                            "I coudn't find the requested person's email in my database. Please try again with a different name")
-
+                        speak("I coudn't find the requested person's email in my database. Please try again with a different name")
                 except:
                     speak("Sorry sir. Couldn't send your mail. Please try again")
 
+            # ── MATH / CALCULATE ──────────────────────────────────────────
+            # Say: "Calculate 452 + 89" / "Calculate area of a circle radius 5"
+            # Powered by Wolframalpha API
             elif "calculate" in command:
                 question = command
                 answer = computational_intelligence(question)
                 speak(answer)
-            
+
+            # ── FACTUAL Q&A ───────────────────────────────────────────────
+            # Say: "What is the speed of light" / "Who is Albert Einstein"
+            # Powered by Wolframalpha API
             elif "what is" in command or "who is" in command:
                 question = command
                 answer = computational_intelligence(question)
                 speak(answer)
 
+            # ── GOOGLE CALENDAR ───────────────────────────────────────────
+            # Say: "What do I have today" / "Am I busy" / "Do I have plans"
+            # Requires: credentials.json from Google Cloud Console
             elif "what do i have" in command or "do i have plans" or "am i busy" in command:
                 obj.google_calendar_events(command)
 
+            # ── NOTES (NOTEPAD) ───────────────────────────────────────────
+            # Say: "Make a note" / "Write this down" / "Remember this"
+            # JARVIS will listen for what to write, then open Notepad
             if "make a note" in command or "write this down" in command or "remember this" in command:
                 speak("What would you like me to write down?")
                 note_text = obj.mic_input()
@@ -240,16 +374,24 @@ class MainThread(QThread):
                 speak("Okay sir, closing notepad")
                 os.system("taskkill /f /im notepad++.exe")
 
+            # ── JOKES ─────────────────────────────────────────────────────
+            # Say: "Tell me a joke" / "Joke"
             if "joke" in command:
                 joke = pyjokes.get_joke()
                 print(joke)
                 speak(joke)
 
+            # ── SYSTEM STATS ──────────────────────────────────────────────
+            # Say: "System status" / "System"
+            # Returns: CPU usage %, RAM usage %, Battery %
             elif "system" in command:
                 sys_info = obj.system_info()
                 print(sys_info)
                 speak(sys_info)
 
+            # ── LOCATION LOOKUP ───────────────────────────────────────────
+            # Say: "Where is Paris" / "Where is Mumbai"
+            # Returns: city, state, country + distance from your current location
             elif "where is" in command:
                 place = command.split('where is ', 1)[1]
                 current_loc, target_loc, distance = obj.location(place)
@@ -258,26 +400,28 @@ class MainThread(QThread):
                 country = target_loc.get('country', '')
                 time.sleep(1)
                 try:
-
                     if city:
                         res = f"{place} is in {state} state and country {country}. It is {distance} km away from your current location"
                         print(res)
                         speak(res)
-
                     else:
                         res = f"{state} is a state in {country}. It is {distance} km away from your current location"
                         print(res)
                         speak(res)
-
                 except:
                     res = "Sorry sir, I couldn't get the co-ordinates of the location you requested. Please try again"
                     speak(res)
 
+            # ── PUBLIC IP ADDRESS ─────────────────────────────────────────
+            # Say: "What is my IP" / "IP address"
             elif "ip address" in command:
                 ip = requests.get('https://api.ipify.org').text
                 print(ip)
                 speak(f"Your ip address is {ip}")
 
+            # ── WINDOW SWITCHER ───────────────────────────────────────────
+            # Say: "Switch window" / "Switch the window"
+            # Sends Alt+Tab keyboard shortcut
             elif "switch the window" in command or "switch window" in command:
                 speak("Okay sir, Switching the window")
                 pyautogui.keyDown("alt")
@@ -285,16 +429,20 @@ class MainThread(QThread):
                 time.sleep(1)
                 pyautogui.keyUp("alt")
 
+            # ── CURRENT LOCATION ─────────────────────────────────────────
+            # Say: "Where am I" / "Where I am" / "Current location"
+            # Returns your city, state, and country using IP geolocation
             elif "where i am" in command or "current location" in command or "where am i" in command:
                 try:
                     city, state, country = obj.my_location()
                     print(city, state, country)
-                    speak(
-                        f"You are currently in {city} city which is in {state} state and country {country}")
+                    speak(f"You are currently in {city} city which is in {state} state and country {country}")
                 except Exception as e:
-                    speak(
-                        "Sorry sir, I coundn't fetch your current location. Please try again")
+                    speak("Sorry sir, I coundn't fetch your current location. Please try again")
 
+            # ── SCREENSHOT ────────────────────────────────────────────────
+            # Say: "Take a screenshot" / "Take screenshot" / "Capture the screen"
+            # JARVIS will ask what name to save the file as
             elif "take screenshot" in command or "take a screenshot" in command or "capture the screen" in command:
                 speak("By what name do you want to save the screenshot?")
                 name = obj.mic_input()
@@ -304,65 +452,89 @@ class MainThread(QThread):
                 img.save(name)
                 speak("The screenshot has been succesfully captured")
 
+            # ── SHOW SCREENSHOT ───────────────────────────────────────────
+            # Say: "Show me the screenshot"
             elif "show me the screenshot" in command:
                 try:
                     img = Image.open('D://JARVIS//JARVIS_2.0//' + name)
                     img.show(img)
                     speak("Here it is sir")
                     time.sleep(2)
-
                 except IOError:
                     speak("Sorry sir, I am unable to display the screenshot")
 
+            # ── HIDE FILES ────────────────────────────────────────────────
+            # Say: "Hide all files" / "Hide this folder"
+            # Uses Windows 'attrib' command to hide all files in current folder
             elif "hide all files" in command or "hide this folder" in command:
                 os.system("attrib +h /s /d")
                 speak("Sir, all the files in this folder are now hidden")
 
+            # ── UNHIDE FILES ──────────────────────────────────────────────
+            # Say: "Make files visible" / "Visible"
             elif "visible" in command or "make files visible" in command:
                 os.system("attrib -h /s /d")
                 speak("Sir, all the files in this folder are now visible to everyone. I hope you are taking this decision in your own peace")
 
-            # if "calculate" in command or "what is" in command:
-            #     query = command
-            #     answer = computational_intelligence(query)
-            #     speak(answer)
-
-            
-
+            # ── SHUTDOWN ──────────────────────────────────────────────────
+            # Say: "Goodbye" / "Offline" / "Bye"
+            # Gracefully exits JARVIS
             elif "goodbye" in command or "offline" in command or "bye" in command:
                 speak("Alright sir, going offline. It was nice working with you")
                 sys.exit()
 
 
+# ── Start the background worker thread ───────────────────────────────────────
 startExecution = MainThread()
 
+
+# =============================================================================
+#  GUI WINDOW (PyQt5)
+#  Full-screen window with animated GIF wallpaper, live clock and date.
+#  Buttons: Run (starts voice engine) | Exit (closes app)
+# =============================================================================
 
 class Main(QMainWindow):
     def __init__(self):
         super().__init__()
         self.ui = Ui_MainWindow()
         self.ui.setupUi(self)
-        self.ui.pushButton.clicked.connect(self.startTask)
-        self.ui.pushButton_2.clicked.connect(self.close)
+        # Connect GUI buttons to their actions
+        self.ui.pushButton.clicked.connect(self.startTask)   # Run button
+        self.ui.pushButton_2.clicked.connect(self.close)     # Exit button
 
     def __del__(self):
         sys.stdout = sys.__stdout__
 
-    # def run(self):
-    #     self.TaskExection
     def startTask(self):
+        """
+        Called when user clicks the 'Run' button on the GUI.
+        1. Starts animated GIF wallpaper
+        2. Starts the live clock timer
+        3. Launches the voice command thread
+        """
+        # Load and start the main animated wallpaper
         self.ui.movie = QtGui.QMovie("Jarvis/utils/images/live_wallpaper.gif")
         self.ui.label.setMovie(self.ui.movie)
         self.ui.movie.start()
+
+        # Load and start the secondary initiating animation
         self.ui.movie = QtGui.QMovie("Jarvis/utils/images/initiating.gif")
         self.ui.label_2.setMovie(self.ui.movie)
         self.ui.movie.start()
+
+        # Start the live clock — updates every 1 second
         timer = QTimer(self)
         timer.timeout.connect(self.showTime)
         timer.start(1000)
+
+        # Launch the voice recognition thread
         startExecution.start()
 
     def showTime(self):
+        """
+        Updates the on-screen clock and date display every second.
+        """
         current_time = QTime.currentTime()
         current_date = QDate.currentDate()
         label_time = current_time.toString('hh:mm:ss')
@@ -370,6 +542,10 @@ class Main(QMainWindow):
         self.ui.textBrowser.setText(label_date)
         self.ui.textBrowser_2.setText(label_time)
 
+
+# =============================================================================
+#  ENTRY POINT — Launch the application
+# =============================================================================
 
 app = QApplication(sys.argv)
 jarvis = Main()
